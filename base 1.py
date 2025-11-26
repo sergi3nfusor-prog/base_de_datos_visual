@@ -14,8 +14,13 @@ st.set_page_config(
 )
 
 # Cadena por defecto (puedes modificarla aquí)
-DEFAULT_DB_URI = "mysql+pymysql://root@localhost:3306/VENTAS"
-
+# DEFAULT_DB_URI = "mysql+pymysql://root@localhost:3306/VENTAS"
+DEFAULT_DB_URI = "mysql+pymysql://sql5809370:ljmKmE64CM@sql5.freesqldatabase.com:3306/sql5809370"
+# Host: sql5.freesqldatabase.com
+#Database name: sql5809370
+#Database user: sql5809370
+#Database password: ljmKmE64CM
+#Port number: 3306
 # ============================================================
 # FUNCIÓN DE CONEXIÓN (SIN CACHE → evita error de pickling)
 # ============================================================
