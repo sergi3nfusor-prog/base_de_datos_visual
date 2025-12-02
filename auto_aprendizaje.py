@@ -1,148 +1,202 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 
 # ============================================================
-# CONFIGURACIÓN DE LA PÁGINA
+# CONFIGURACIÓN
 # ============================================================
-st.set_page_config(
-    page_title="Dashboard de Ventas - Tienda Deportiva",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Dashboard de Ventas", layout="wide")
 
-# Asegúrate de tener pymysql instalado si usas este URI
-DEFAULT_DB_URI = "mysql+pymysql://root:root@localhost:3306/TiendaDeportiva"
+DB_URL = "mysql+pymysql://root:@localhost:3306/tienda_de_ropa"
+engine = create_engine(DB_URL)
 
 # ============================================================
-# FUNCIÓN DE CONEXIÓN
+# FUNCIÓN DE CARGA DE DATOS
 # ============================================================
-def get_engine(db_uri):
-    try:
-        engine = create_engine(db_uri)
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        return engine
-    except Exception as e:
-        st.error(f"❌ Error conectando a la base de datos:\n{e}")
-        return None
-
-# ============================================================
-# CARGA DE DATOS
-# ============================================================
-@st.cache_data(ttl=600)
-def load_data(db_uri):
-    engine = create_engine(db_uri)
-
-    query = """
+@st.cache_data
+def load_data():
+    consulta = """
         SELECT 
             v.id_venta,
             v.fecha_venta,
             v.monto_total,
-            v.impuesto,
             v.descuento_aplicado,
             (v.monto_total - v.descuento_aplicado) AS monto_neto,
 
-            -- CLIENTE
-            c.id_cliente,
-            CONCAT(COALESCE(c.nombre,''), ' ', COALESCE(c.apellido_paterno,''), ' ', COALESCE(c.apellido_materno,'')) AS nombre_cliente,
-            c.ci,
+            -- PRODUCTO REAL DESDE DETALLE FACTURA
+            df.descripcion_producto AS nombre_producto,
+            df.cantidad,
+            df.monto_total AS subtotal,
 
-            -- FACTURA
-            f.id_factura,
-            f.numero_factura,
-            f.total AS total_factura,
+            -- CAMPOS NECESARIOS PARA EL DASHBOARD
+            NULL AS marca,
+            NULL AS material,
 
-            -- DETALLE
-            dv.id_detalle_venta,
-            dv.id_producto AS dv_id_producto,
-            dv.cantidad,
-            dv.precio_unitario,
-            dv.subtotal,
-            dv.fecha_pedido,
-
-            -- PRODUCTO
-            p.id_producto,
-            p.nombre_producto,
-            p.marca,
-            p.material,
-            p.talla,
-            p.precio AS precio_producto,
-
-            -- MÉTODO DE PAGO
+            -- MÉTODO DE PAGO FORMATEADO
             CASE
                 WHEN qr.id_qr IS NOT NULL THEN 'QR'
-                WHEN tar.id_tarjeta IS NOT NULL THEN 'TARJETA'
-                WHEN ef.id_efectivo IS NOT NULL THEN 'EFECTIVO'
-                ELSE 'SIN_REGISTRO'
-            END AS tipo_pago
+                WHEN ef.id_efectivo IS NOT NULL THEN 'Efectivo'
+                WHEN t.id_tarjeta IS NOT NULL THEN CONCAT('Tarjeta - ', t.tipo_tarjeta)
+                ELSE 'Sin Registro'
+            END AS metodo_pago,
+
+            -- TIPO TARJETA (PARA DASHBOARD)
+            t.tipo_tarjeta
 
         FROM venta v
-        LEFT JOIN cliente c ON c.id_cliente = v.id_cliente
-        LEFT JOIN factura f ON f.id_factura = v.id_factura
-        LEFT JOIN pago pg ON pg.id_pago = v.id_pago
-        LEFT JOIN qr ON qr.id_pago = pg.id_pago
-        LEFT JOIN tarjeta tar ON tar.id_pago = pg.id_pago
-        LEFT JOIN efectivo ef ON ef.id_pago = pg.id_pago
-        LEFT JOIN detalle_venta dv ON dv.id_venta = v.id_venta
-        LEFT JOIN producto p ON p.id_producto = dv.id_producto;
+        LEFT JOIN factura f 
+            ON v.id_factura = f.id_factura
+
+        LEFT JOIN detalle_factura df 
+            ON df.id_factura = f.id_factura
+
+        LEFT JOIN pago pg 
+            ON v.id_pago = pg.id_pago
+
+        LEFT JOIN qr 
+            ON pg.id_pago = qr.id_pago
+
+        LEFT JOIN efectivo ef 
+            ON pg.id_pago = ef.id_pago
+
+        LEFT JOIN tarjeta t 
+            ON pg.id_pago = t.id_pago;
     """
 
-    try:
-        df = pd.read_sql(query, engine)
-    except Exception as e:
-        st.error(f"❌ Error ejecutando la consulta SQL:\n{e}")
-        return pd.DataFrame()
+    df = pd.read_sql(consulta, engine)
 
-    # Conversión de fechas
-    df["fecha_venta"] = pd.to_datetime(df.get("fecha_venta"), errors="coerce")
-    df["fecha_pedido"] = pd.to_datetime(df.get("fecha_pedido"), errors="coerce")
-
-    # Limpieza y conversión numérica segura
-    for col in ["monto_total", "descuento_aplicado", "monto_neto", "impuesto", "precio_unitario", "subtotal", "precio_producto"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
-
-    # Recalcular monto_neto si hay inconsistencias
-    if "monto_total" in df.columns and "descuento_aplicado" in df.columns:
-        df["monto_neto"] = df["monto_total"] - df["descuento_aplicado"]
-    else:
-        df["monto_neto"] = df.get("monto_neto", pd.Series(0.0, index=df.index))
-
-    # Derivados temporales
-    df["anio"] = df["fecha_venta"].dt.year
-    df["mes"] = df["fecha_venta"].dt.month
-    df["mes_anio"] = df["fecha_venta"].dt.to_period("M").astype(str)
-
-    df["tipo_pago"] = df["tipo_pago"].fillna("SIN_REGISTRO")
-    df["nombre_producto"] = df["nombre_producto"].fillna("SIN_PRODUCTO")
+    df["fecha_venta"] = pd.to_datetime(df["fecha_venta"])
+    df["mes"] = df["fecha_venta"].dt.to_period("M").astype(str)
 
     return df
 
+
+# CARGAR DATOS
+df = load_data()
+
 # ============================================================
-# FUNCIÓN DE FILTRADO
+# FILTROS
 # ============================================================
-def filtrar(df, fechas, productos, marcas, pagos):
-    # fechas: lista o tupla [fi, ff]
-    try:
-        fi, ff = fechas
-    except Exception:
-        # si el usuario seleccionó una sola fecha, la duplicamos
-        fi = ff = fechas
+st.sidebar.header("Filtros")
 
-    # Aseguramos que son objetos date
-    if hasattr(fi, "to_pydatetime"):
-        fi = fi
-    if hasattr(ff, "to_pydatetime"):
-        ff = ff
+meses_disp = sorted(df["mes"].unique())
+productos_disp = sorted(df["nombre_producto"].dropna().unique())
+metodos_disp = sorted(df["metodo_pago"].dropna().unique())
+tarjetas_disp = sorted(df["tipo_tarjeta"].dropna().unique())
 
-    # Filtrado por rango inclusive
-    mask_fecha = df["fecha_venta"].dt.date.between(pd.to_datetime(fi).date(), pd.to_datetime(ff).date())
-    df = df[mask_fecha]
+meses_sel = st.sidebar.multiselect("Meses", meses_disp, default=meses_disp)
+productos_sel = st.sidebar.multiselect("Productos", productos_disp, default=productos_disp)
+metodos_sel = st.sidebar.multiselect("Método de Pago", metodos_disp, default=metodos_disp)
+tarjetas_sel = st.sidebar.multiselect("Tipo de Tarjeta", tarjetas_disp, default=tarjetas_disp)
 
-    if productos:
-        df = df[df["nombre_producto"].isin(productos)]
+df_filtrado = df[
+    df["mes"].isin(meses_sel) &
+    df["nombre_producto"].isin(productos_sel) &
+    df["metodo_pago"].isin(metodos_sel)
+]
 
+if tarjetas_sel:
+    df_filtrado = df_filtrado[
+        (df_filtrado["tipo_tarjeta"].isin(tarjetas_sel)) |
+        (df_filtrado["tipo_tarjeta"].isna())
+    ]
+
+# ============================================================
+# TÍTULO
+# ============================================================
+st.title("📊 Dashboard de Ventas - Tienda Deportiva")
+
+# ============================================================
+# KPIs
+# ============================================================
+st.subheader("📌 Indicadores")
+
+c1, c2, c3, c4 = st.columns(4)
+
+c1.metric("Ventas Totales", f"{df_filtrado['monto_neto'].sum():,.2f} Bs")
+c2.metric("Total de Ventas", len(df_filtrado))
+c3.metric("Ticket Promedio", f"{df_filtrado['monto_neto'].mean():,.2f} Bs" if len(df_filtrado) else "0.00 Bs")
+
+top_prod = (
+    df_filtrado.groupby("nombre_producto")["subtotal"]
+    .sum()
+    .sort_values(ascending=False)
+    .index[0]
+    if not df_filtrado.empty else "N/A"
+)
+c4.metric("Producto Más Vendido", top_prod)
+
+# ============================================================
+# TABLA POR MES
+# ============================================================
+st.subheader("📄 Ventas por Mes")
+
+tabla_mes = df_filtrado.groupby("mes")["monto_neto"].sum().reset_index()
+st.dataframe(tabla_mes, use_container_width=True)
+
+fig_mes = px.bar(
+    tabla_mes,
+    x="mes",
+    y="monto_neto",
+    title="Ventas por Mes",
+)
+st.plotly_chart(fig_mes, use_container_width=True)
+
+# ============================================================
+# TOP PRODUCTOS
+# ============================================================
+st.subheader("🏆 Top 10 Productos Más Vendidos")
+
+top_productos = (
+    df_filtrado.groupby("nombre_producto")["subtotal"]
+    .sum()
+    .sort_values(ascending=False)
+    .reset_index()
+    .head(10)
+)
+
+fig_top = px.bar(
+    top_productos,
+    x="nombre_producto",
+    y="subtotal",
+    title="Top 10 Productos",
+)
+st.plotly_chart(fig_top, use_container_width=True)
+
+# ============================================================
+# MÉTODOS DE PAGO
+# ============================================================
+st.subheader("💳 Distribución de Métodos de Pago")
+
+tabla_pago = df_filtrado.groupby("metodo_pago")["monto_neto"].sum().reset_index()
+
+fig_pago = px.pie(
+    tabla_pago,
+    names="metodo_pago",
+    values="monto_neto",
+    title="Métodos de Pago"
+)
+st.plotly_chart(fig_pago, use_container_width=True)
+
+# ============================================================
+# DASHBOARD POR TIPO DE TARJETA
+# ============================================================
+st.subheader("💳 Ventas por Tipo de Tarjeta")
+
+df_tarjeta = df_filtrado[df_filtrado["tipo_tarjeta"].notna()]
+
+if not df_tarjeta.empty:
+    tabla_tarjeta = df_tarjeta.groupby("tipo_tarjeta")["monto_neto"].sum().reset_index()
+
+    fig_tarjeta = px.bar(
+        tabla_tarjeta,
+        x="tipo_tarjeta",
+        y="monto_neto",
+        title="Ventas por Tipo de Tarjeta"
+    )
+
+    st.plotly_chart(fig_tarjeta, use_container_width=True)
+else:
+    st.info("No hay ventas pagadas con tarjeta en el filtro seleccionado.")
 
