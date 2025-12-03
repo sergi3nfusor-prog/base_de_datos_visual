@@ -12,6 +12,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+st.markdown("---")
+
+st.markdown("**Creador de la página ventas:** SÁNCHEZ  CIELO")
 
 # CSS personalizado mejorado
 st.markdown("""

@@ -13,6 +13,10 @@ st.set_page_config(
     layout="wide"
 )
 
+st.markdown("---")
+
+st.markdown("**Creador de la página ventas:** ANCE ARIO")
+
 st.markdown("""
 <style>
     .main {

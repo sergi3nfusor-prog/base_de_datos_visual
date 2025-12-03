@@ -10,13 +10,17 @@ st.set_page_config(page_title="Dashboard de Ventas", layout="wide")
 DB_URL = "mysql+pymysql://sql5809887:XSjyzGzKg8@sql5.freesqldatabase.com:3306/sql5809887"
 engine = create_engine(DB_URL)
 st.subheader("👥 Integrantes del Proyecto")
-
 st.container(border=True).markdown("""
 - **ANCE ARIO**
 - **MAMANI  KARLA**  
 - **MEDRANO  SERGIO**  
 - **SÁNCHEZ  CIELO**
 """)
+
+st.markdown("---")
+
+st.markdown("**Creador de la página ventas:** Sergio Medrano")
+
 # FUNCIÓN DE CARGA DE DATOS
 @st.cache_data
 def load_data():
