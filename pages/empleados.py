@@ -15,7 +15,7 @@ st.set_page_config(
 
 st.markdown("---")
 
-st.markdown("**Creador de la página ventas:** ANCE ARIO")
+st.markdown("**Creador de la página empleados:** ANCE ARIO")
 
 st.markdown("""
 <style>

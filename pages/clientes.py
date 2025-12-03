@@ -155,6 +155,9 @@ def filtrar_datos(df, ciudades, generos, niveles, estados_membresia, fecha_inici
 # INTERFAZ PRINCIPAL
 # ============================================================
 st.title("📊 Dashboard de Clientes - Tienda Deportiva")
+st.markdown("---")
+
+st.markdown("**Creador de la página ventas:** MAMANI  KARLA")
 
 # Verificar conexión
 engine = get_engine(DEFAULT_DB_URI)

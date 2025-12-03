@@ -65,6 +65,9 @@ def load_data():
     return df
 
 
+
+
+
 # CARGAR DATOS
 df = load_data()
 

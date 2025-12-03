@@ -14,7 +14,7 @@ st.set_page_config(
 )
 st.markdown("---")
 
-st.markdown("**Creador de la página ventas:** SÁNCHEZ  CIELO")
+st.markdown("**Creador de la página inventario:** SÁNCHEZ  CIELO")
 
 # CSS personalizado mejorado
 st.markdown("""
