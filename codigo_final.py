@@ -462,3 +462,114 @@ elif page == "Empleados":
 # ------------------------
 st.markdown("---")
 st.markdown("<div style='text-align:center; color:#94a3b8;'>Tienda Deportiva — Dashboards integrados · Desarrollado con Streamlit & Plotly</div>", unsafe_allow_html=True)
+# ---------- Página 4: Empleados ----------
+def render_empleados():
+
+    st.title("👔 Dashboard de Empleados – Tienda Deportiva")
+
+    # ==========================================
+    # ESTILO (reutilizado del dashboard original)
+    # ==========================================
+    st.markdown("""
+    <style>
+        .main {
+            background: linear-gradient(140deg, #0f172a 0%, #1e293b 100%);
+        }
+        div[data-testid="metric-container"] {
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            margin: 10px;
+        }
+        .box {
+            background: rgba(30, 41, 59, 0.4);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            margin-bottom: 20px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ==========================================
+    # DATOS SIMULADOS (exacto a tu código)
+    # ==========================================
+    np.random.seed(42)
+
+    sucursales = ["Central", "Norte", "Sur", "Este", "Oeste"]
+    turnos = ["Mañana", "Tarde", "Noche"]
+    estados = ["Activo", "Vacaciones", "Suspendido", "Retirado"]
+
+    empleados = {
+        "id_empleado": range(1, 41),
+        "empleado": [f"Empleado {i}" for i in range(1, 41)],
+        "nombre_sucursal": np.random.choice(sucursales, 40),
+        "nombre_turno": np.random.choice(turnos, 40),
+        "fecha_inicio_contrato": pd.date_range("2022-01-01", periods=40, freq="30D"),
+        "fecha_fin_contrato": pd.date_range("2023-06-01", periods=40, freq="40D"),
+        "nombre_estado": np.random.choice(estados, 40),
+    }
+
+    df = pd.DataFrame(empleados)
+    df["duracion_contrato"] = (df["fecha_fin_contrato"] - df["fecha_inicio_contrato"]).dt.days
+
+    # ==========================================
+    # SIDEBAR — filtros
+    # ==========================================
+    st.sidebar.header("Filtros · Empleados")
+
+    fil_sucursal = st.sidebar.multiselect("Sucursal", sucursales, sucursales)
+    fil_turno = st.sidebar.multiselect("Turno", turnos, turnos)
+    fil_estado = st.sidebar.multiselect("Estado Laboral", estados, estados)
+
+    df_filtered = df[
+        (df["nombre_sucursal"].isin(fil_sucursal)) &
+        (df["nombre_turno"].isin(fil_turno)) &
+        (df["nombre_estado"].isin(fil_estado))
+    ]
+
+    # ==========================================
+    # KPIs
+    # ==========================================
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("👥 Total empleados", len(df_filtered))
+    col2.metric("✔️ Activos", df_filtered[df_filtered["nombre_estado"] == "Activo"].shape[0])
+    col3.metric("⏳ Duración promedio (días)", round(df_filtered["duracion_contrato"].mean(), 2))
+    col4.metric("🏢 Sucursales con personal", df_filtered["nombre_sucursal"].nunique())
+
+    st.markdown("---")
+
+    # ==========================================
+    # Gráficos
+    # ==========================================
+    # Empleados por sucursal
+    st.subheader("🏢 Distribución de Empleados por Sucursal")
+    suc_count = df_filtered["nombre_sucursal"].value_counts()
+    fig_suc = px.bar(suc_count, x=suc_count.index, y=suc_count.values, title="Empleados por Sucursal")
+    st.plotly_chart(fig_suc, use_container_width=True)
+
+    # Estado laboral
+    st.subheader("🧩 Estado Laboral del Personal")
+    estado_count = df_filtered["nombre_estado"].value_counts()
+    fig_estado = px.pie(names=estado_count.index, values=estado_count.values, title="Estados Laborales")
+    st.plotly_chart(fig_estado, use_container_width=True)
+
+    # Duración contrato
+    st.subheader("⏱ Duración del Contrato")
+    fig_duracion = px.line(df_filtered.sort_values("duracion_contrato"),
+                           x="empleado", y="duracion_contrato", markers=True)
+    st.plotly_chart(fig_duracion, use_container_width=True)
+
+    # ==========================================
+    # Tabla
+    # ==========================================
+    st.subheader("📋 Lista Detallada de Empleados")
+
+    busqueda = st.text_input("🔎 Buscar empleado")
+    df_show = df_filtered.copy()
+    if busqueda:
+        df_show = df_show[df_show["empleado"].str.contains(busqueda, case=False)]
+
+    st.dataframe(df_show, height=350, use_container_width=True)
