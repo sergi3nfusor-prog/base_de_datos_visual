@@ -6,7 +6,8 @@ from sqlalchemy import create_engine
 # CONFIGURACIÓN
 st.set_page_config(page_title="Dashboard de Ventas", layout="wide")
 
-DB_URL = "mysql+pymysql://root:@localhost:3306/tienda_de_ropa"
+# 🔄 NUEVA CONEXIÓN QUE ME PEDISTE
+DB_URL = "mysql+pymysql://sql5809887:XSjyzGzKg8@sql5.freesqldatabase.com:3306/sql5809887"
 engine = create_engine(DB_URL)
 
 # FUNCIÓN DE CARGA DE DATOS
@@ -20,16 +21,13 @@ def load_data():
             v.descuento_aplicado,
             (v.monto_total - v.descuento_aplicado) AS monto_neto,
 
-            -- PRODUCTO REAL DESDE DETALLE FACTURA
             df.descripcion_producto AS nombre_producto,
             df.cantidad,
             df.monto_total AS subtotal,
 
-            -- CAMPOS NECESARIOS PARA EL DASHBOARD
             NULL AS marca,
             NULL AS material,
 
-            -- MÉTODO DE PAGO FORMATEADO
             CASE
                 WHEN qr.id_qr IS NOT NULL THEN 'QR'
                 WHEN ef.id_efectivo IS NOT NULL THEN 'Efectivo'
@@ -37,7 +35,6 @@ def load_data():
                 ELSE 'Sin Registro'
             END AS metodo_pago,
 
-            -- TIPO TARJETA
             t.tipo_tarjeta
 
         FROM venta v
@@ -71,10 +68,10 @@ def load_data():
 # CARGAR DATOS
 df = load_data()
 
-# FILTROS (CALENDARIO + MESES + PRODUCTOS + MÉTODOS)
+# FILTROS
 st.sidebar.header("Filtros")
 
-# ---------- 📅 RANGO DE FECHAS (CALENDARIO) ----------
+# 📅 RANGO FECHAS
 fecha_min = df["fecha_venta"].min()
 fecha_max = df["fecha_venta"].max()
 
@@ -87,29 +84,28 @@ rango_fechas = st.sidebar.date_input(
 
 fecha_inicio, fecha_fin = rango_fechas
 
-# Aplicar filtro por calendario
 df = df[
     (df["fecha_venta"] >= pd.to_datetime(fecha_inicio)) &
     (df["fecha_venta"] <= pd.to_datetime(fecha_fin))
 ]
 
-# ---------- 📆 FILTRO POR MESES ----------
+# 📆 MESES
 meses_disp = sorted(df["mes"].unique())
 meses_sel = st.sidebar.multiselect("Filtrar por Mes", meses_disp, default=meses_disp)
 
-# ---------- 🎽 PRODUCTOS ----------
+# 🎽 PRODUCTOS
 productos_disp = sorted(df["nombre_producto"].dropna().unique())
 productos_sel = st.sidebar.multiselect("Productos", productos_disp, default=productos_disp)
 
-# ---------- 💳 MÉTODOS DE PAGO ----------
+# 💳 MÉTODO PAGO
 metodos_disp = sorted(df["metodo_pago"].dropna().unique())
 metodos_sel = st.sidebar.multiselect("Método de Pago", metodos_disp, default=metodos_disp)
 
-# ---------- 🪪 TIPOS DE TARJETA ----------
+# 🪪 TARJETA
 tarjetas_disp = sorted(df["tipo_tarjeta"].dropna().unique())
 tarjetas_sel = st.sidebar.multiselect("Tipo de Tarjeta", tarjetas_disp, default=tarjetas_disp)
 
-# ---------- APLICAR FILTROS FINALES ----------
+# APLICAR FILTROS
 df_filtrado = df[
     df["mes"].isin(meses_sel) &
     df["nombre_producto"].isin(productos_sel) &
@@ -121,7 +117,6 @@ if tarjetas_sel:
         (df_filtrado["tipo_tarjeta"].isin(tarjetas_sel)) |
         (df_filtrado["tipo_tarjeta"].isna())
     ]
-
 
 # TÍTULO
 st.title("📊 Dashboard de Ventas - Tienda Deportiva")
@@ -143,8 +138,6 @@ top_prod = (
     if not df_filtrado.empty else "N/A"
 )
 c4.metric("Producto Más Vendido", top_prod)
-
-# GRÁFICOS CON EXPANDERS
 
 # 🔹 Ventas por Mes
 with st.expander("📄 Ventas por Mes"):
@@ -186,7 +179,7 @@ with st.expander("💳 Ventas por Tipo de Tarjeta"):
     else:
         st.info("No hay ventas pagadas con tarjeta en el filtro seleccionado.")
 
-# 🔹 Ventas por Producto en el tiempo
+# 🔹 Ventas por Producto a lo Largo del Tiempo
 with st.expander("📦 Ventas por Producto a lo Largo del Tiempo"):
     detalle_prod = (
         df_filtrado.groupby(["mes", "nombre_producto"])["subtotal"]
