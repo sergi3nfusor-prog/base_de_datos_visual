@@ -12,7 +12,7 @@ engine = create_engine(DB_URL)
 st.subheader("👥 Integrantes del Proyecto")
 
 st.container(border=True).markdown("""
-- **ANCE ARIO **
+- **ANCE ARIO**
 - **MAMANI  KARLA**  
 - **MEDRANO  SERGIO**  
 - **SÁNCHEZ  CIELO**
