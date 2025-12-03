@@ -3,17 +3,13 @@ import pandas as pd
 import plotly.express as px
 from sqlalchemy import create_engine
 
-# ============================================================
 # CONFIGURACIÓN
-# ============================================================
 st.set_page_config(page_title="Dashboard de Ventas", layout="wide")
 
 DB_URL = "mysql+pymysql://root:@localhost:3306/tienda_de_ropa"
 engine = create_engine(DB_URL)
 
-# ============================================================
 # FUNCIÓN DE CARGA DE DATOS
-# ============================================================
 @st.cache_data
 def load_data():
     consulta = """
@@ -41,7 +37,7 @@ def load_data():
                 ELSE 'Sin Registro'
             END AS metodo_pago,
 
-            -- TIPO TARJETA (PARA DASHBOARD)
+            -- TIPO TARJETA
             t.tipo_tarjeta
 
         FROM venta v
@@ -75,21 +71,45 @@ def load_data():
 # CARGAR DATOS
 df = load_data()
 
-# ============================================================
-# FILTROS
-# ============================================================
+# FILTROS (CALENDARIO + MESES + PRODUCTOS + MÉTODOS)
 st.sidebar.header("Filtros")
 
-meses_disp = sorted(df["mes"].unique())
-productos_disp = sorted(df["nombre_producto"].dropna().unique())
-metodos_disp = sorted(df["metodo_pago"].dropna().unique())
-tarjetas_disp = sorted(df["tipo_tarjeta"].dropna().unique())
+# ---------- 📅 RANGO DE FECHAS (CALENDARIO) ----------
+fecha_min = df["fecha_venta"].min()
+fecha_max = df["fecha_venta"].max()
 
-meses_sel = st.sidebar.multiselect("Meses", meses_disp, default=meses_disp)
+rango_fechas = st.sidebar.date_input(
+    "Rango de Fechas (Calendario)",
+    value=(fecha_min, fecha_max),
+    min_value=fecha_min,
+    max_value=fecha_max
+)
+
+fecha_inicio, fecha_fin = rango_fechas
+
+# Aplicar filtro por calendario
+df = df[
+    (df["fecha_venta"] >= pd.to_datetime(fecha_inicio)) &
+    (df["fecha_venta"] <= pd.to_datetime(fecha_fin))
+]
+
+# ---------- 📆 FILTRO POR MESES ----------
+meses_disp = sorted(df["mes"].unique())
+meses_sel = st.sidebar.multiselect("Filtrar por Mes", meses_disp, default=meses_disp)
+
+# ---------- 🎽 PRODUCTOS ----------
+productos_disp = sorted(df["nombre_producto"].dropna().unique())
 productos_sel = st.sidebar.multiselect("Productos", productos_disp, default=productos_disp)
+
+# ---------- 💳 MÉTODOS DE PAGO ----------
+metodos_disp = sorted(df["metodo_pago"].dropna().unique())
 metodos_sel = st.sidebar.multiselect("Método de Pago", metodos_disp, default=metodos_disp)
+
+# ---------- 🪪 TIPOS DE TARJETA ----------
+tarjetas_disp = sorted(df["tipo_tarjeta"].dropna().unique())
 tarjetas_sel = st.sidebar.multiselect("Tipo de Tarjeta", tarjetas_disp, default=tarjetas_disp)
 
+# ---------- APLICAR FILTROS FINALES ----------
 df_filtrado = df[
     df["mes"].isin(meses_sel) &
     df["nombre_producto"].isin(productos_sel) &
@@ -102,14 +122,11 @@ if tarjetas_sel:
         (df_filtrado["tipo_tarjeta"].isna())
     ]
 
-# ============================================================
+
 # TÍTULO
-# ============================================================
 st.title("📊 Dashboard de Ventas - Tienda Deportiva")
 
-# ============================================================
 # KPIs
-# ============================================================
 st.subheader("📌 Indicadores")
 
 c1, c2, c3, c4 = st.columns(4)
@@ -127,76 +144,56 @@ top_prod = (
 )
 c4.metric("Producto Más Vendido", top_prod)
 
-# ============================================================
-# TABLA POR MES
-# ============================================================
-st.subheader("📄 Ventas por Mes")
+# GRÁFICOS CON EXPANDERS
 
-tabla_mes = df_filtrado.groupby("mes")["monto_neto"].sum().reset_index()
-st.dataframe(tabla_mes, use_container_width=True)
+# 🔹 Ventas por Mes
+with st.expander("📄 Ventas por Mes"):
+    tabla_mes = df_filtrado.groupby("mes")["monto_neto"].sum().reset_index()
+    st.dataframe(tabla_mes, use_container_width=True)
 
-fig_mes = px.bar(
-    tabla_mes,
-    x="mes",
-    y="monto_neto",
-    title="Ventas por Mes",
-)
-st.plotly_chart(fig_mes, use_container_width=True)
+    fig_mes = px.bar(tabla_mes, x="mes", y="monto_neto", title="Ventas por Mes")
+    st.plotly_chart(fig_mes, use_container_width=True)
 
-# ============================================================
-# TOP PRODUCTOS
-# ============================================================
-st.subheader("🏆 Top 10 Productos Más Vendidos")
-
-top_productos = (
-    df_filtrado.groupby("nombre_producto")["subtotal"]
-    .sum()
-    .sort_values(ascending=False)
-    .reset_index()
-    .head(10)
-)
-
-fig_top = px.bar(
-    top_productos,
-    x="nombre_producto",
-    y="subtotal",
-    title="Top 10 Productos",
-)
-st.plotly_chart(fig_top, use_container_width=True)
-
-# ============================================================
-# MÉTODOS DE PAGO
-# ============================================================
-st.subheader("💳 Distribución de Métodos de Pago")
-
-tabla_pago = df_filtrado.groupby("metodo_pago")["monto_neto"].sum().reset_index()
-
-fig_pago = px.pie(
-    tabla_pago,
-    names="metodo_pago",
-    values="monto_neto",
-    title="Métodos de Pago"
-)
-st.plotly_chart(fig_pago, use_container_width=True)
-
-# ============================================================
-# DASHBOARD POR TIPO DE TARJETA
-# ============================================================
-st.subheader("💳 Ventas por Tipo de Tarjeta")
-
-df_tarjeta = df_filtrado[df_filtrado["tipo_tarjeta"].notna()]
-
-if not df_tarjeta.empty:
-    tabla_tarjeta = df_tarjeta.groupby("tipo_tarjeta")["monto_neto"].sum().reset_index()
-
-    fig_tarjeta = px.bar(
-        tabla_tarjeta,
-        x="tipo_tarjeta",
-        y="monto_neto",
-        title="Ventas por Tipo de Tarjeta"
+# 🔹 Top Productos
+with st.expander("🏆 Top 10 Productos Más Vendidos"):
+    top_productos = (
+        df_filtrado.groupby("nombre_producto")["subtotal"]
+        .sum()
+        .sort_values(ascending=False)
+        .reset_index()
+        .head(10)
     )
 
-    st.plotly_chart(fig_tarjeta, use_container_width=True)
-else:
-    st.info("No hay ventas pagadas con tarjeta en el filtro seleccionado.")
+    fig_top = px.bar(top_productos, x="nombre_producto", y="subtotal", title="Top 10 Productos")
+    st.plotly_chart(fig_top, use_container_width=True)
 
+# 🔹 Métodos de Pago
+with st.expander("💳 Distribución de Métodos de Pago"):
+    tabla_pago = df_filtrado.groupby("metodo_pago")["monto_neto"].sum().reset_index()
+
+    fig_pago = px.pie(tabla_pago, names="metodo_pago", values="monto_neto", title="Métodos de Pago")
+    st.plotly_chart(fig_pago, use_container_width=True)
+
+# 🔹 Dashboard por Tipo de Tarjeta
+with st.expander("💳 Ventas por Tipo de Tarjeta"):
+    df_tarjeta = df_filtrado[df_filtrado["tipo_tarjeta"].notna()]
+
+    if not df_tarjeta.empty:
+        tabla_tarjeta = df_tarjeta.groupby("tipo_tarjeta")["monto_neto"].sum().reset_index()
+
+        fig_tarjeta = px.bar(tabla_tarjeta, x="tipo_tarjeta", y="monto_neto", title="Ventas por Tipo de Tarjeta")
+        st.plotly_chart(fig_tarjeta, use_container_width=True)
+    else:
+        st.info("No hay ventas pagadas con tarjeta en el filtro seleccionado.")
+
+# 🔹 Ventas por Producto en el tiempo
+with st.expander("📦 Ventas por Producto a lo Largo del Tiempo"):
+    detalle_prod = (
+        df_filtrado.groupby(["mes", "nombre_producto"])["subtotal"]
+        .sum()
+        .reset_index()
+    )
+
+    fig_detalle = px.line(detalle_prod, x="mes", y="subtotal", color="nombre_producto",
+                          title="Tendencia de Ventas por Producto")
+    st.plotly_chart(fig_detalle, use_container_width=True)
