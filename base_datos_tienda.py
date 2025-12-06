@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, text
 # ============================================================
 # CONFIGURACIÓN DE LA PÁGINA
 # ============================================================
+#hola
 st.set_page_config(
     page_title="Dashboard Tienda Deportiva",
     layout="wide",
